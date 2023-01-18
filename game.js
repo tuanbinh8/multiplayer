@@ -195,7 +195,7 @@ class Player extends Component {
         this.gravitySpeed += this.gravity;
         this.x += this.speedX;
         this.y += this.speedY;
-        updateData('players/' + name, {
+        updateData('players/' + this.name, {
             x: this.x,
             y: this.y,
         })
