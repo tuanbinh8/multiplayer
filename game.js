@@ -2,6 +2,7 @@ import { readData, readDataWhere, writeData, updateData, changeListener } from '
 
 let components, players, playerComponents, player, playerComponent
 let name = localStorage.name || undefined
+let isClosing = false
 
 async function start() {
     gameArea.start()
@@ -13,6 +14,7 @@ async function start() {
         gameArea.keys[event.keyCode] = false
     }
     window.onbeforeunload = () => {
+        isClosing = true
         updateData('players/' + name, {
             online: false,
         })
@@ -27,28 +29,30 @@ async function start() {
     }
     changeListener('players', (data) => {
         players = Object.values(data)
-        if (!name) {
-            do {
-                name = prompt('Enter your name')
-            }
-            while (name == '' || !name);
-            if (getPlayer(name)) {
+        if (!isClosing) {
+            if (!name) {
+                do {
+                    name = prompt('Enter your name')
+                }
+                while (name == '' || !name);
+                if (getPlayer(name)) {
+                    updateData('players/' + name, {
+                        online: true,
+                    })
+                } else {
+                    writeData('players/' + name, {
+                        name,
+                        x: 0,
+                        y: 0,
+                        online: true,
+                    })
+                }
+                localStorage.name = name
+            } else {
                 updateData('players/' + name, {
                     online: true,
                 })
-            } else {
-                writeData('players/' + name, {
-                    name,
-                    x: 0,
-                    y: 0,
-                    online: true,
-                })
             }
-            localStorage.name = name
-        } else {
-            updateData('players/' + name, {
-                online: true,
-            })
         }
         components = []
         playerComponents = []
@@ -149,7 +153,7 @@ class Component {
         } else return false
     }
     touchWith(otherobj) {
-        if (components.indexOf(this) > -1 && components.indexOf(otherobj) > -1) {
+        if (this.isComponent() && otherobj.isComponent()) {
             let touch = true;
             let myleft = this.x;
             let myright = this.x + (this.width);
@@ -182,8 +186,8 @@ class Component {
 }
 
 class Player extends Component {
-    constructor(name, x, y, width, height, color, fill, textAlign, textBaseline) {
-        super(x, y, width, height, color, fill, textAlign, textBaseline)
+    constructor(name, x, y, width, height, color, fill) {
+        super(x, y, width, height, color, fill)
         this.name = name
         this.type = 'rect'
         this.ctx = gameArea.ctx
@@ -191,14 +195,27 @@ class Player extends Component {
         this.speedY = 0
         this.gravitySpeed = 0;
     }
+    draw() {
+        this.ctx.strokeStyle = this.color
+        this.ctx.strokeRect(this.x, this.y, this.width, this.height);
+        this.ctx.fillStyle = this.color;
+        this.ctx.fillRect(this.x, this.y, this.width, this.height);
+        // this.ctx.font = this.width + " " + this.height;
+        this.ctx.fillStyle = this.color;
+        // this.ctx.textAlign = this.textAlign
+        // this.ctx.textBaseline = this.textBaseline
+        this.ctx.fillText(this.name, this.x, this.y - 10);
+    }
     newPos() {
         this.gravitySpeed += this.gravity;
         this.x += this.speedX;
         this.y += this.speedY;
-        updateData('players/' + this.name, {
-            x: this.x,
-            y: this.y,
-        })
+        if (this.name == name) {
+            updateData('players/' + this.name, {
+                x: this.x,
+                y: this.y,
+            })
+        }
     }
     moveUp(speed) {
         this.speedY = -speed;
