@@ -6,32 +6,49 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Canvas game</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        #container {
-            background-color: black;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        #canvas {
-            background-color: white;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+    <div id="loader-container">
+        <div class="loader"></div>
+    </div>
     <div id="container">
-        <canvas id="canvas" width="1280" height="577"></canvas>
+        <canvas id="canvas"></canvas>
+    </div>
+    <div id="top">
+        <div>
+            <ul>
+                <li id="x"></li>
+                <li id="y"></li>
+            </ul>
+            <input type="color" id="color">
+        </div>
+        <div>
+            <button id="chat-button">Chat</button>
+            <button id="log-out">Log out</button>
+        </div>
+    </div>
+    <div id="moving-buttons">
+        <div style="justify-content: center;">
+            <span></span>
+            <button id="up" data-key="ArrowUp">^</button>
+            <span></span>
+        </div>
+        <div style="justify-content: space-between;">
+            <button id="left" data-key="ArrowLeft"><</button>
+            <span></span>
+            <button id="right" data-key="ArrowRight">></button>
+        </div>
+        <div style="justify-content: center;">
+            <span></span>
+            <button id="down" data-key="ArrowDown">v</button>
+            <span></span>
+        </div>
+    </div>
+    <div id="chat-container">
+        <ul id="chat-list"></ul>
+        <input type="text" id="chat-input" style="display:none;">
     </div>
 </body>
 <script type="module" src="game.js"></script>

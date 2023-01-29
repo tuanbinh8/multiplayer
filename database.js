@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, child, push, update, query } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+import { getDatabase, ref, set, onValue, update, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDMVQDpqQL1czpacdc4SPQKGHVFreDiJkg",
@@ -52,4 +52,4 @@ function changeListener(path, cb) {
     });
 }
 
-export { readData, readDataWhere, writeData, updateData, changeListener }
+export { readData, readDataWhere, writeData, updateData, changeListener, serverTimestamp }
