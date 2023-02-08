@@ -40,11 +40,13 @@ async function start() {
         gameArea.keys[event.key] = false
     }
 
-    window.onbeforeunload = () => {
-        updateData('players/' + name, {
-            online: false,
-        })
-        chatLog(name + ' disconnected')
+    window.onunload = () => {
+        if (name) {
+            console.log(1);
+            updateData('players/' + name, {
+                online: false,
+            })
+        }
     }
 
     gameArea.canvas.onmousedown = (event) => {
@@ -70,7 +72,7 @@ async function start() {
             chatInput.value = ''
         }
     }
-    
+
     chatInput.onblur = () => {
         window.dispatchEvent(new KeyboardEvent('keydown', {
             'key': 'Escape'
@@ -119,12 +121,11 @@ async function start() {
                 updateData('players/' + name, {
                     online: true,
                 })
-                chatLog(name + ' joined')
             } else {
+                console.log(2);
                 updateData('players/' + name, {
                     online: false,
                 })
-                chatLog(name + ' disconnected')
             }
         }
     })
@@ -143,50 +144,88 @@ async function start() {
         chatList.style.clipPath = `polygon(0% ${chatList.offsetHeight - 210}px, 100% ${chatList.offsetHeight - 210}px, 100% 100%, 0% 100%)`
     })
 
+    changeListener('players/' + name + '/online', (online) => {
+        if (hasStarted) {
+            if (online) chatLog(name + ' joined')
+            else chatLog(name + ' disconnected')
+        }
+    })
+
     changeListener('players', (data) => {
         players = Object.values(data)
         if (!hasStarted) {
+            hasStarted = true
             if (!name) {
-                do {
-                    name = prompt('Enter your name')
-                    if (getPlayer(name) && getPlayer(name).online) {
-                        alert('Someone else is using this account')
-                        name = undefined
-                    }
-                } while (name == '' || !name);
-                if (getPlayer(name)) {
-                    updateData('players/' + name, {
-                        online: true,
-                    })
-                } else {
-                    writeData('players/' + name, {
-                        name,
-                        x: Math.round(gameArea.canvas.width / 2),
-                        y: Math.round(gameArea.canvas.height / 2),
-                        color: '#ff0000',
-                        online: true,
-                    })
-                }
+                let password
+                askName()
                 localStorage.name = name
-                chatLog(name + ' joined')
+                function askName() {
+                    do {
+                        name = prompt('Enter your name')
+                        if (name) name = name.trim()
+                        if (getPlayer(name) && getPlayer(name).online) {
+                            alert('Someone else is using this account')
+                            name = undefined
+                        }
+                    } while (name == '' || !name);
+                    askPassword()
+                }
+                function askPassword() {
+                    password = null
+                    if (getPlayer(name)) {
+                        password = prompt('Enter your password')
+                        if (password) password = password.trim()
+                        if (!password) {
+                            askName()
+                            return
+                        }
+                        if (getPlayer(name).password !== password) {
+                            alert('Invalid password')
+                            askPassword()
+                            return
+                        } else {
+                            updateData('players/' + name, {
+                                online: true,
+                            })
+                        }
+                    } else {
+                        password = prompt('New account. Create a password')
+                        if (password) password = password.trim()
+                        if (password == '') {
+                            askPassword()
+                            return
+                        }
+                        if (!password) {
+                            askName()
+                            return
+                        }
+                        writeData('players/' + name, {
+                            name,
+                            password,
+                            x: Math.round(gameArea.canvas.width / 2),
+                            y: Math.round(gameArea.canvas.height / 2),
+                            color: '#ff0000',
+                            online: true,
+                            direction: 'left',
+                        })
+                    }
+                }
             } else {
                 if (getPlayer(name)) {
                     updateData('players/' + name, {
                         online: true,
                     })
-                    chatLog(name + ' joined')
                 } else {
                     localStorage.removeItem('name')
                     location.reload()
                 }
             }
             loaderContainer.remove()
-            hasStarted = true
         }
         components = []
         playerComponents = []
         players.map(player => {
-            let component = new Player(player.name, player.x, player.y, 50, player.color)
+            let component = new Player(player.name, player.x, player.y, 50, player.color, player.direction)
             if (player.online) component.addComponent()
             if (player.name == name) playerComponent = component
         })
@@ -317,7 +356,7 @@ class Component {
 }
 
 class Player {
-    constructor(name, x, y, width, color) {
+    constructor(name, x, y, width, color, direction) {
         this.ctx = gameArea.ctx
         this.name = name
         this.x = x
@@ -327,6 +366,7 @@ class Player {
         this.color = color
         this.speedX = 0
         this.speedY = 0
+        this.direction = direction ? direction : 'left'
     }
     draw() {
         this.ctx.strokeStyle = this.color
@@ -336,28 +376,41 @@ class Player {
         this.ctx.font = '20px Arial';
         this.ctx.fillStyle = this.name == name ? 'green' : this.color;
         this.ctx.textAlign = 'center';
-        // this.ctx.textBaseline = 'center'
         this.ctx.fillText(this.name, this.x, this.y - this.height / 2 - 10);
     }
     newPos() {
-        let moveX = true
-        let moveY = true
-        playerComponents.map(component => {
-            if (this.touchWith(component) == 'top' && this.speedY < 0) {
-                moveY = false
-            }
-            if (this.touchWith(component) == 'bottom' && this.speedY > 0) {
-                moveY = false
-            }
-            if (this.touchWith(component) == 'right' && this.speedX > 0) {
-                moveX = false
-            }
-            if (this.touchWith(component) == 'left' && this.speedX < 0) {
-                moveX = false
-            }
-        })
-        if (moveX) this.x += this.speedX;
-        if (moveY) this.y += this.speedY;
+        // let moveX = true
+        // let moveY = true
+        // playerComponents.map(component => {
+        //     if (this.touchWith(component, {
+        //         name,
+        //         x: this.x + this.speedX,
+        //         y: this.y + this.speedY,
+        //         width: this.width,
+        //         height: this.height,
+        //         direction: this.direction,
+        //     }) == 'inside') {
+        //         console.log(this.speedX);
+        //         if (this.direction == 'up' && !this.speedX) {
+        //             this.y = component.y + component.height + 1
+        //             moveY = false
+        //         }
+        //         if (this.direction == 'down' && !this.speedX) {
+        //             this.y = component.y - this.height - 1
+        //             moveY = false
+        //         }
+        //         if (this.direction == 'right' && !this.speedY) {
+        //             this.x = component.x - this.width - 1
+        //             moveX = false
+        //         }
+        //         if (this.direction == 'left' && !this.speedY) {
+        //             this.x = component.x + component.width + 1
+        //             moveX = false
+        //         }
+        //     }
+        // })
+        this.x += this.speedX;
+        this.y += this.speedY;
         updateData('players/' + this.name, {
             x: this.x,
             y: this.y,
@@ -367,15 +420,19 @@ class Player {
     }
     moveUp(speed) {
         this.speedY = -speed;
+        this.direction = 'up'
     }
     moveDown(speed) {
         this.speedY = speed;
+        this.direction = 'down'
     }
     moveLeft(speed) {
         this.speedX = -speed;
+        this.direction = 'left'
     }
     moveRight(speed) {
         this.speedX = speed;
+        this.direction = 'right'
     }
     isComponent() {
         if (playerComponents.filter(component => component.name == this.name).length) return true
@@ -392,34 +449,34 @@ class Player {
             playerComponents.splice(playerComponents.indexOf(this), 1)
         }
     }
-    touchWith(otherPlayer) {
-        if (this.isComponent() && otherPlayer.isComponent() && otherPlayer.name !== this.name) {
+    touchWith(otherPlayer, thisPlayer = this) {
+        if (otherPlayer.name !== thisPlayer.name) {
             let touch = false;
-            let myleft = this.x;
-            let myright = this.x + this.width;
-            let mytop = this.y;
-            let mybottom = this.y + this.height;
+            let myleft = thisPlayer.x;
+            let myright = thisPlayer.x + thisPlayer.width;
+            let mytop = thisPlayer.y;
+            let mybottom = thisPlayer.y + thisPlayer.height;
             let otherleft = otherPlayer.x;
             let otherright = otherPlayer.x + otherPlayer.width;
             let othertop = otherPlayer.y;
             let otherbottom = otherPlayer.y + otherPlayer.height;
-            if ((mybottom >= othertop) &&
-                (mytop <= otherbottom) &&
-                (myright >= otherleft) &&
-                (myleft <= otherright)) {
-                touch = true;
+            if ((mybottom > othertop) &&
+                (mytop < otherbottom) &&
+                (myright > otherleft) &&
+                (myleft < otherright)) {
+                touch = 'inside'
             }
             if ((mybottom > othertop) &&
                 (mytop == otherbottom + 1) &&
                 (myright > otherleft) &&
                 (myleft < otherright)) {
-                touch = 'top';
+                touch = 'up';
             }
             if ((mybottom == othertop - 1) &&
                 (mytop < otherbottom) &&
                 (myright > otherleft) &&
                 (myleft < otherright)) {
-                touch = 'bottom';
+                touch = 'down';
             }
             if ((mybottom > othertop) &&
                 (mytop < otherbottom) &&
@@ -469,10 +526,10 @@ function updateGameArea() {
     gameArea.clear();
     playerComponent.speedX = 0;
     playerComponent.speedY = 0;
-    if (keyDown('ArrowLeft')) playerComponent.moveLeft(1)
-    if (keyDown('ArrowRight')) playerComponent.moveRight(1)
-    if (keyDown('ArrowUp')) playerComponent.moveUp(1)
-    if (keyDown('ArrowDown')) playerComponent.moveDown(1)
+    if (keyDown('ArrowLeft')) playerComponent.moveLeft(2)
+    if (keyDown('ArrowRight')) playerComponent.moveRight(2)
+    if (keyDown('ArrowUp')) playerComponent.moveUp(2)
+    if (keyDown('ArrowDown')) playerComponent.moveDown(2)
     drawBackground('rect', 'lightblue')
     components.map(component => {
         component.draw()
