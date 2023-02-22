@@ -42,7 +42,6 @@ async function start() {
 
     window.onunload = () => {
         if (name) {
-            console.log(1);
             updateData('players/' + name, {
                 online: false,
             })
@@ -152,7 +151,7 @@ async function start() {
     })
 
     changeListener('players', (data) => {
-        players = Object.values(data)
+        players = data ? Object.values(data) : []
         if (!hasStarted) {
             hasStarted = true
             if (!name) {
@@ -222,7 +221,6 @@ async function start() {
             }
             loaderContainer.remove()
         }
-        components = []
         playerComponents = []
         players.map(player => {
             let component = new Player(player.name, player.x, player.y, 50, player.color, player.direction)
@@ -232,6 +230,15 @@ async function start() {
         player = getPlayer(name)
         colorInput.value = player.color
     })
+
+    changeListener('components', (data) => {
+        components = data ? Object.values(data) : []
+        components.map(_component => {
+            let component = new Component(_component.name, _component.type, _component.x, _component.y, _component.width, _component.height, _component.color, _component.fill, _component.textAlign, _component.textBaseline)
+            if (_component.visibility) component.addComponent()
+        })
+    })
+
     if (!/Android|webOS|iPhone|iPad|Macintosh|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
         movingButtonsContainer.remove()
         chatButton.remove()
@@ -254,7 +261,8 @@ let gameArea = {
 }
 
 class Component {
-    constructor(type, x, y, width, height, color, fill, textAlign, textBaseline) {
+    constructor(name, type, x, y, width, height, color, fill, textAlign, textBaseline) {
+        this.name = name
         this.ctx = gameArea.ctx
         this.type = type
         this.x = x
@@ -322,22 +330,46 @@ class Component {
             return clicked;
         } else return false
     }
-    touchWith(otherobj) {
-        if (this.isComponent() && otherobj.isComponent()) {
-            let touch = true;
-            let myleft = this.x;
-            let myright = this.x + (this.width);
-            let mytop = this.y;
-            let mybottom = this.y + (this.height);
-            let otherleft = otherobj.x;
-            let otherright = otherobj.x + (otherobj.width);
-            let othertop = otherobj.y;
-            let otherbottom = otherobj.y + (otherobj.height);
-            if ((mybottom < othertop) ||
-                (mytop > otherbottom) ||
-                (myright < otherleft) ||
-                (myleft > otherright)) {
-                touch = false;
+    touchWith(otherComponent, thisComponent = this) {
+        if (otherComponent.isComponent() && (thisComponent == this ? thisComponent.isComponent() : true)) {
+            let touch = false;
+            let myleft = thisComponent.x;
+            let myright = thisComponent.x + thisComponent.width;
+            let mytop = thisComponent.y;
+            let mybottom = thisComponent.y + thisComponent.height;
+            let otherleft = otherComponent.x;
+            let otherright = otherComponent.x + otherComponent.width;
+            let othertop = otherComponent.y;
+            let otherbottom = otherComponent.y + otherComponent.height;
+            if ((mybottom > othertop) &&
+                (mytop < otherbottom) &&
+                (myright > otherleft) &&
+                (myleft < otherright)) {
+                touch = 'inside'
+            }
+            if ((mybottom > othertop) &&
+                (mytop == otherbottom + 1) &&
+                (myright > otherleft) &&
+                (myleft < otherright)) {
+                touch = 'up';
+            }
+            if ((mybottom == othertop - 1) &&
+                (mytop < otherbottom) &&
+                (myright > otherleft) &&
+                (myleft < otherright)) {
+                touch = 'down';
+            }
+            if ((mybottom > othertop) &&
+                (mytop < otherbottom) &&
+                (myright == otherleft - 1) &&
+                (myleft < otherright)) {
+                touch = 'right';
+            }
+            if ((mybottom > othertop) &&
+                (mytop < otherbottom) &&
+                (myright > otherleft) &&
+                (myleft == otherright + 1)) {
+                touch = 'left';
             }
             return touch;
         } else return false
@@ -356,7 +388,7 @@ class Component {
 }
 
 class Player {
-    constructor(name, x, y, width, color, direction) {
+    constructor(name, x, y, width, color) {
         this.ctx = gameArea.ctx
         this.name = name
         this.x = x
@@ -366,7 +398,6 @@ class Player {
         this.color = color
         this.speedX = 0
         this.speedY = 0
-        this.direction = direction ? direction : 'left'
     }
     draw() {
         this.ctx.strokeStyle = this.color
@@ -379,36 +410,6 @@ class Player {
         this.ctx.fillText(this.name, this.x, this.y - this.height / 2 - 10);
     }
     newPos() {
-        // let moveX = true
-        // let moveY = true
-        // playerComponents.map(component => {
-        //     if (this.touchWith(component, {
-        //         name,
-        //         x: this.x + this.speedX,
-        //         y: this.y + this.speedY,
-        //         width: this.width,
-        //         height: this.height,
-        //         direction: this.direction,
-        //     }) == 'inside') {
-        //         console.log(this.speedX);
-        //         if (this.direction == 'up' && !this.speedX) {
-        //             this.y = component.y + component.height + 1
-        //             moveY = false
-        //         }
-        //         if (this.direction == 'down' && !this.speedX) {
-        //             this.y = component.y - this.height - 1
-        //             moveY = false
-        //         }
-        //         if (this.direction == 'right' && !this.speedY) {
-        //             this.x = component.x - this.width - 1
-        //             moveX = false
-        //         }
-        //         if (this.direction == 'left' && !this.speedY) {
-        //             this.x = component.x + component.width + 1
-        //             moveX = false
-        //         }
-        //     }
-        // })
         this.x += this.speedX;
         this.y += this.speedY;
         updateData('players/' + this.name, {
@@ -420,19 +421,59 @@ class Player {
     }
     moveUp(speed) {
         this.speedY = -speed;
-        this.direction = 'up'
+        playerComponents.map(component => {
+            if (this.touchWith(component, {
+                name: this.name,
+                x: this.x,
+                y: this.y + this.speedY,
+                width: this.width,
+                height: this.height,
+            }) == 'inside') {
+                this.speedY = 0
+            }
+        })
     }
     moveDown(speed) {
         this.speedY = speed;
-        this.direction = 'down'
+        playerComponents.map(component => {
+            if (this.touchWith(component, {
+                name: this.name,
+                x: this.x,
+                y: this.y + this.speedY,
+                width: this.width,
+                height: this.height,
+            }) == 'inside') {
+                this.speedY = 0
+            }
+        })
     }
     moveLeft(speed) {
         this.speedX = -speed;
-        this.direction = 'left'
+        playerComponents.map(component => {
+            if (this.touchWith(component, {
+                name: this.name,
+                x: this.x + this.speedX,
+                y: this.y,
+                width: this.width,
+                height: this.height,
+            }) == 'inside') {
+                this.speedX = 0
+            }
+        })
     }
     moveRight(speed) {
         this.speedX = speed;
-        this.direction = 'right'
+        playerComponents.map(component => {
+            if (this.touchWith(component, {
+                name: this.name,
+                x: this.x + this.speedX,
+                y: this.y,
+                width: this.width,
+                height: this.height,
+            }) == 'inside') {
+                this.speedX = 0
+            }
+        })
     }
     isComponent() {
         if (playerComponents.filter(component => component.name == this.name).length) return true
@@ -450,7 +491,7 @@ class Player {
         }
     }
     touchWith(otherPlayer, thisPlayer = this) {
-        if (otherPlayer.name !== thisPlayer.name) {
+        if (otherPlayer.name !== thisPlayer.name && otherPlayer.isComponent() && (thisPlayer == this ? thisPlayer.isComponent() : true)) {
             let touch = false;
             let myleft = thisPlayer.x;
             let myright = thisPlayer.x + thisPlayer.width;
@@ -515,8 +556,8 @@ function getPlayer(name) {
     return players.filter(player => player.name == name)[0]
 }
 
-function drawBackground(type, color) {
-    let background = new Component(type, 0, 0, gameArea.canvas.width, gameArea.canvas.height, color, true)
+function drawBackground(color) {
+    let background = new Component('background', 'rect', 0, 0, gameArea.canvas.width, gameArea.canvas.height, color, true)
     background.draw()
 }
 
@@ -530,7 +571,7 @@ function updateGameArea() {
     if (keyDown('ArrowRight')) playerComponent.moveRight(2)
     if (keyDown('ArrowUp')) playerComponent.moveUp(2)
     if (keyDown('ArrowDown')) playerComponent.moveDown(2)
-    drawBackground('rect', 'lightblue')
+    drawBackground('lightblue')
     components.map(component => {
         component.draw()
     })
