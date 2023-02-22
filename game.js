@@ -15,6 +15,7 @@ let chatButton = document.getElementById('chat-button')
 let movingButtonsContainer = document.getElementById('moving-buttons')
 let movingButtons = Array.from(document.querySelectorAll('#moving-buttons button'))
 let logOutButton = document.getElementById('log-out')
+let playersList = document.getElementById('players-list')
 
 async function start() {
     console.log(serverTimestamp());
@@ -34,10 +35,17 @@ async function start() {
             gameArea.canvas.focus()
             chatButton.innerText = 'Chat'
         }
+        if (event.key == 'Tab') {
+            event.preventDefault()
+            playersList.style.display = 'block'
+        }
     }
 
     window.onkeyup = (event) => {
         gameArea.keys[event.key] = false
+        if (event.key == 'Tab') {
+            playersList.style.display = 'none'
+        }
     }
 
     window.onunload = () => {
@@ -205,7 +213,6 @@ async function start() {
                             y: Math.round(gameArea.canvas.height / 2),
                             color: '#ff0000',
                             online: true,
-                            direction: 'left',
                         })
                     }
                 }
@@ -222,9 +229,13 @@ async function start() {
             loaderContainer.remove()
         }
         playerComponents = []
+        playersList.innerHTML = ''
         players.map(player => {
-            let component = new Player(player.name, player.x, player.y, 50, player.color, player.direction)
-            if (player.online) component.addComponent()
+            let component = new Player(player.name, player.x, player.y, 50, player.color)
+            if (player.online) {
+                component.addComponent()
+                playersList.innerHTML += `<li><span style='background:${component.color};'></span> ${component.name}</li>`
+            }
             if (player.name == name) playerComponent = component
         })
         player = getPlayer(name)
@@ -430,6 +441,7 @@ class Player {
                 height: this.height,
             }) == 'inside') {
                 this.speedY = 0
+                this.y = component.y + component.height + 1
             }
         })
     }
@@ -444,6 +456,7 @@ class Player {
                 height: this.height,
             }) == 'inside') {
                 this.speedY = 0
+                this.y = component.y - this.height - 1
             }
         })
     }
@@ -458,6 +471,7 @@ class Player {
                 height: this.height,
             }) == 'inside') {
                 this.speedX = 0
+                this.x = component.x + component.width + 1
             }
         })
     }
@@ -472,6 +486,7 @@ class Player {
                 height: this.height,
             }) == 'inside') {
                 this.speedX = 0
+                this.x = component.x - this.width - 1
             }
         })
     }
@@ -579,6 +594,7 @@ function updateGameArea() {
         component.draw()
     })
     playerComponent.newPos()
+    // botAI()
 }
 
 function keyDown(key) {
@@ -595,3 +611,19 @@ function chatLog(text) {
 }
 
 start()
+
+// function botAI() {
+//     let bot = getPlayer('bot')
+//     if ((bot.x + 50) < player.x) {
+//         writeData('players/bot/x', bot.x + 1)
+//     }
+//     if (bot.x > (player.x - 50)) {
+//         writeData('players/bot/x', bot.x - 1)
+//     }
+//     if (bot.y > (player.y + 50)){
+//         writeData('players/bot/y', bot.y - 1)
+//     }
+//     if ((bot.y + 50) < player.y){
+//         writeData('players/bot/y', bot.y + 1)
+//     }
+// }
