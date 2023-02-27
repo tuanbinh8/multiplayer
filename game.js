@@ -229,7 +229,7 @@ async function start() {
             loaderContainer.remove()
         }
         playerComponents = []
-        playersList.innerHTML = ''
+        playersList.innerHTML = `<li id='players-number'>Players: ${players.filter(player=>player.online).length}</li>`
         players.map(player => {
             let component = new Player(player.name, player.x, player.y, 50, player.color)
             if (player.online) {
