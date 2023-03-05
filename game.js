@@ -1,49 +1,69 @@
-import { readData, readDataWhere, writeData, updateData, changeListener, serverTimestamp } from './database.js'
+import * as THREE from 'https://unpkg.com/three/build/three.module.js';
+import { readData, writeData, updateData, changeListener } from './database.js'
 
-let components, players, playerComponents, player, playerComponent
+let canvas = document.getElementById('canvas')
+let scene = new THREE.Scene()
+let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+let renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, })
+let keys = []
+
+let players, playerComponents = [], player, playerComponent
 let name = localStorage.name || undefined
 let chatLength
 let hasStarted = false
-
-let loaderContainer = document.getElementById('loader-container')
-let xDisplayer = document.getElementById('x')
-let yDisplayer = document.getElementById('y')
-let colorInput = document.getElementById('color')
-let chatInput = document.getElementById('chat-input')
-let chatList = document.getElementById('chat-list')
-let chatButton = document.getElementById('chat-button')
-let movingButtonsContainer = document.getElementById('moving-buttons')
-let movingButtons = Array.from(document.querySelectorAll('#moving-buttons button'))
-let logOutButton = document.getElementById('log-out')
-let playersList = document.getElementById('players-list')
+let timer
+let mouseChangeX
 
 async function start() {
-    console.log(serverTimestamp());
-    gameArea.start()
+    let colorInput = document.getElementById('color')
+    let chatInput = document.getElementById('chat-input')
+    let chatList = document.getElementById('chat-list')
+    let chatButton = document.getElementById('chat-button')
+    let movingButtons = Array.from(document.querySelectorAll('#moving-buttons button'))
+    let logOutButton = document.getElementById('log-out')
+    let playersList = document.getElementById('players-list')
+
+    let ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambientLight);
+    let dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    dirLight.position.set(200, 500, 300);
+    scene.add(dirLight);
+    scene.background = getColor('lightblue')
+    camera.position.set(0, 200, 200);
+    camera.lookAt(0, 100, 0);
+    let planeGeometry = new THREE.PlaneGeometry(5000, 5000, 5000);
+    let planeMaterial = new THREE.MeshBasicMaterial({ color: getColor('rgb(106, 193, 116)') });
+    let planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+    planeMesh.rotateX(- Math.PI / 2);
+    scene.add(planeMesh)
+    setInterval(updateGameArea)
+
     window.onkeydown = (event) => {
-        gameArea.keys = gameArea.keys || []
-        gameArea.keys[event.key] = true
-        if ((event.key == 't' || event.key == 'T') && chatInput.style.display == 'none') {
+        let key = event.key
+        if (!keys.includes(key))
+            keys.push(key)
+        if ((key == 't' || key == 'T') && chatInput.style.display == 'none') {
             event.preventDefault()
             chatInput.style.display = 'block'
             chatInput.focus()
             chatButton.innerText = 'Close'
         }
-        if (event.key == 'Escape') {
+        if (key == 'Escape') {
             chatInput.style.display = 'none'
             chatInput.value = ''
-            gameArea.canvas.focus()
+            canvas.focus()
             chatButton.innerText = 'Chat'
         }
-        if (event.key == 'Tab') {
+        if (key == 'Tab') {
             event.preventDefault()
             playersList.style.display = 'block'
         }
     }
 
     window.onkeyup = (event) => {
-        gameArea.keys[event.key] = false
-        if (event.key == 'Tab') {
+        let key = event.key
+        keys.splice(keys.indexOf(key), 1)
+        if (key == 'Tab') {
             playersList.style.display = 'none'
         }
     }
@@ -56,14 +76,12 @@ async function start() {
         }
     }
 
-    gameArea.canvas.onmousedown = (event) => {
-        gameArea.mouseX = event.clientX - gameArea.canvas.offsetLeft
-        gameArea.mouseY = event.clientY - gameArea.canvas.offsetTop
-    }
-
-    gameArea.canvas.onmouseup = () => {
-        gameArea.mouseX = undefined
-        gameArea.mouseY = undefined
+    window.onmousemove = (event) => {
+        mouseChangeX = event.movementX
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+            mouseChangeX = 0
+        });
     }
 
     chatInput.onkeydown = async (event) => {
@@ -129,7 +147,6 @@ async function start() {
                     online: true,
                 })
             } else {
-                console.log(2);
                 updateData('players/' + name, {
                     online: false,
                 })
@@ -151,14 +168,7 @@ async function start() {
         chatList.style.clipPath = `polygon(0% ${chatList.offsetHeight - 210}px, 100% ${chatList.offsetHeight - 210}px, 100% 100%, 0% 100%)`
     })
 
-    changeListener('players/' + name + '/online', (online) => {
-        if (hasStarted) {
-            if (online) chatLog(name + ' joined')
-            else chatLog(name + ' disconnected')
-        }
-    })
-
-    changeListener('players', (data) => {
+    changeListener('players', async (data) => {
         players = data ? Object.values(data) : []
         if (!hasStarted) {
             hasStarted = true
@@ -209,9 +219,17 @@ async function start() {
                         writeData('players/' + name, {
                             name,
                             password,
-                            x: Math.round(gameArea.canvas.width / 2),
-                            y: Math.round(gameArea.canvas.height / 2),
                             color: '#ff0000',
+                            position: {
+                                x: 0,
+                                y: 0,
+                                z: 0,
+                            },
+                            rotation: {
+                                x: 0,
+                                y: 0,
+                                z: 0,
+                            },
                             online: true,
                         })
                     }
@@ -226,269 +244,110 @@ async function start() {
                     location.reload()
                 }
             }
+            let loaderContainer = document.getElementById('loader-container')
             loaderContainer.remove()
         }
-        playerComponents = []
-        playersList.innerHTML = `<li id='players-number'>Players: ${players.filter(player=>player.online).length}</li>`
-        players.map(player => {
-            let component = new Player(player.name, player.x, player.y, 50, player.color)
-            if (player.online) {
-                component.addComponent()
-                playersList.innerHTML += `<li><span style='background:${component.color};'></span> ${component.name}</li>`
-            }
-            if (player.name == name) playerComponent = component
-        })
         player = getPlayer(name)
+        playersList.innerHTML = `<li id='players-number'>Players: ${players.length}</li>`
+        players.map(player => {
+            let componentList = playerComponents.filter(component => component.name == player.name)
+            if (player.online) {
+                let component
+                if (componentList.length) {
+                    component = componentList[0]
+                    component.color = player.color
+                    component.position = player.position
+                    component.rotation = player.rotation
+                } else {
+                    component = new Player(player.name, player.color, 50, player.position, player.rotation)
+                    component.addComponent()
+                    if (player.name == name) playerComponent = component
+                    playersList.innerHTML += `<li><span style='background:${component.color};'></span> ${component.name}</li>`
+                }
+                playersList.innerHTML += `<li><span style='background:${component.color};'></span> ${component.name}</li>`
+            } else {
+                if (componentList.length) {
+                    scene.remove(componentList[0].cube);
+                    playerComponents.splice(playerComponents.indexOf(componentList[0]), 1)
+                }
+            }
+        })
         colorInput.value = player.color
     })
 
-    changeListener('components', (data) => {
-        components = data ? Object.values(data) : []
-        components.map(_component => {
-            let component = new Component(_component.name, _component.type, _component.x, _component.y, _component.width, _component.height, _component.color, _component.fill, _component.textAlign, _component.textBaseline)
-            if (_component.visibility) component.addComponent()
-        })
+    changeListener('players/' + name + '/online', (online) => {
+        if (hasStarted) {
+            if (online) chatLog(name + ' joined')
+            else chatLog(name + ' disconnected')
+        }
     })
 
     if (!/Android|webOS|iPhone|iPad|Macintosh|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        let movingButtonsContainer = document.getElementById('moving-buttons')
         movingButtonsContainer.remove()
         chatButton.remove()
     }
-}
-
-let gameArea = {
-    canvas: document.getElementById('canvas'),
-    start: function () {
-        this.ctx = this.canvas.getContext('2d')
-        this.interval = setInterval(updateGameArea)
-    },
-    clear: function () {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    },
-    stop: function () {
-        clearInterval(this.interval);
-        clearInterval(this.timeInterval);
-    },
-}
-
-class Component {
-    constructor(name, type, x, y, width, height, color, fill, textAlign, textBaseline) {
-        this.name = name
-        this.ctx = gameArea.ctx
-        this.type = type
-        this.x = x
-        this.y = y
-        this.width = width
-        this.height = height
-        this.color = color
-        this.fill = fill
-        this.textAlign = textAlign
-        this.textBaseline = textBaseline
-    }
-    draw() {
-        if (this.type == 'rect') {
-            this.ctx.strokeStyle = this.color
-            this.ctx.strokeRect(this.x, this.y, this.width, this.height);
-            if (this.fill) {
-                this.ctx.fillStyle = this.color;
-                this.ctx.fillRect(this.x, this.y, this.width, this.height);
-            }
-        }
-        if (this.type == 'image') {
-            let image = new Image()
-            image.src = `image/${this.color}`
-            if (this.width !== undefined && this.height !== undefined) {
-                image.onload = () => {
-                    this.ctx.drawImage(image, this.x, this.y, this.width, this.height);
-                }
-            } else {
-                image.onload = () => {
-                    this.ctx.drawImage(image, this.x, this.y);
-                }
-            }
-        }
-        if (this.type == 'text') {
-            this.ctx.font = this.width + " " + this.height;
-            this.ctx.fillStyle = this.color;
-            if (this.textAlign)
-                this.ctx.textAlign = this.textAlign
-            if (this.textBaseline)
-                this.ctx.textBaseline = this.textBaseline
-            this.ctx.fillText(this.text, this.x, this.y);
-        }
-        if (this.type == 'circle') {
-            this.ctx.beginPath();
-            this.ctx.arc(this.x, this.y, this.width, 0, 2 * Math.PI);
-            this.height = this.width
-            this.ctx.strokeStyle = this.color
-            this.ctx.stroke();
-            if (this.fill) {
-                this.ctx.fillStyle = this.color
-                this.ctx.fill();
-            }
-        }
-    }
-    clicked() {
-        if (components.indexOf(this) > -1) {
-            let myleft = this.x;
-            let myright = this.x + (this.width);
-            let mytop = this.y;
-            let mybottom = this.y + (this.height);
-            let clicked = false;
-            if ((mybottom >= gameArea.mouseY) || (mytop <= gameArea.mouseY) || (myright >= gameArea.mouseX) || (myleft <= gameArea.mouseX)) {
-                clicked = true;
-            }
-            return clicked;
-        } else return false
-    }
-    touchWith(otherComponent, thisComponent = this) {
-        if (otherComponent.isComponent() && (thisComponent == this ? thisComponent.isComponent() : true)) {
-            let touch = false;
-            let myleft = thisComponent.x;
-            let myright = thisComponent.x + thisComponent.width;
-            let mytop = thisComponent.y;
-            let mybottom = thisComponent.y + thisComponent.height;
-            let otherleft = otherComponent.x;
-            let otherright = otherComponent.x + otherComponent.width;
-            let othertop = otherComponent.y;
-            let otherbottom = otherComponent.y + otherComponent.height;
-            if ((mybottom > othertop) &&
-                (mytop < otherbottom) &&
-                (myright > otherleft) &&
-                (myleft < otherright)) {
-                touch = 'inside'
-            }
-            if ((mybottom > othertop) &&
-                (mytop == otherbottom + 1) &&
-                (myright > otherleft) &&
-                (myleft < otherright)) {
-                touch = 'up';
-            }
-            if ((mybottom == othertop - 1) &&
-                (mytop < otherbottom) &&
-                (myright > otherleft) &&
-                (myleft < otherright)) {
-                touch = 'down';
-            }
-            if ((mybottom > othertop) &&
-                (mytop < otherbottom) &&
-                (myright == otherleft - 1) &&
-                (myleft < otherright)) {
-                touch = 'right';
-            }
-            if ((mybottom > othertop) &&
-                (mytop < otherbottom) &&
-                (myright > otherleft) &&
-                (myleft == otherright + 1)) {
-                touch = 'left';
-            }
-            return touch;
-        } else return false
-    }
-    addComponent() {
-        if (!this.isComponent()) components.push(this)
-    }
-    isComponent() {
-        if (components.includes(this)) return true
-        else return false
-    }
-    deleteComponent() {
-        if (this.isComponent())
-            components.splice(components.indexOf(this), 1)
-    }
+    canvas.onclick = () => canvas.requestPointerLock()
 }
 
 class Player {
-    constructor(name, x, y, width, color) {
-        this.ctx = gameArea.ctx
+    constructor(name, color, width, position, rotation) {
         this.name = name
-        this.x = x
-        this.y = y
-        this.width = width
-        this.height = width
         this.color = color
+        this.width = width
+        this.position = position
+        this.rotation = rotation
         this.speedX = 0
         this.speedY = 0
+        this.speedZ = 0
+        let geometry = new THREE.BoxGeometry(width, width, width);
+        let material = new THREE.MeshLambertMaterial({ color: getColor(this.color) });
+        this.cube = new THREE.Mesh(geometry, material);
+        scene.add(this.cube);
     }
-    draw() {
-        this.ctx.strokeStyle = this.color
-        this.ctx.strokeRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-        this.ctx.fillStyle = this.color;
-        this.ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
-        this.ctx.font = '20px Arial';
-        this.ctx.fillStyle = this.name == name ? 'green' : this.color;
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText(this.name, this.x, this.y - this.height / 2 - 10);
-    }
-    newPos() {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        updateData('players/' + this.name, {
-            x: this.x,
-            y: this.y,
-        })
-        xDisplayer.innerText = 'x: ' + this.x
-        yDisplayer.innerText = 'y: ' + this.y
+    update() {
+        if (this.name == name) {
+            this.position.x += this.speedX;
+            this.position.y += this.speedY;
+            this.position.z += this.speedZ;
+            let positionDisplayer = document.getElementById('position-displayer')
+            positionDisplayer.innerHTML = `
+            <b>Position</b>
+            <li>x: ${Math.round(this.position.x)}</li>
+            <li>y: ${Math.round(this.position.y)}</li>
+            <li>z: ${Math.round(this.position.z)}</li>
+            <b>Rotation</b>
+            <li>x: ${Math.round(this.rotation.x)}</li>
+            <li>y: ${Math.round(this.rotation.y)}</li>
+            <li>z: ${Math.round(this.rotation.z)}</li>`
+
+            playerComponent.rotation.y -= mouseChangeX ? mouseChangeX / 100 : 0
+            playerComponent.rotation.y = playerComponent.rotation.y % (2 * Math.PI)
+            let radius = 200
+            let angle = this.rotation.y
+            camera.position.x = radius * Math.sin(angle)
+            camera.position.z = radius * Math.cos(angle)
+
+            updateData('players/' + name, {
+                position: this.position,
+                rotation: this.rotation,
+            })
+        }
+        this.cube.position.set(this.position.x - player.position.x, this.position.y + this.width / 2, this.position.z - player.position.z);
+        this.cube.rotation.set(this.rotation.x, this.rotation.y, this.rotation.z)
+        this.cube.material.color = getColor(this.color)
     }
     moveUp(speed) {
-        this.speedY = -speed;
-        playerComponents.map(component => {
-            if (this.touchWith(component, {
-                name: this.name,
-                x: this.x,
-                y: this.y + this.speedY,
-                width: this.width,
-                height: this.height,
-            }) == 'inside') {
-                this.speedY = 0
-                this.y = component.y + component.height + 1
-            }
-        })
+        this.speedZ = -speed;
     }
     moveDown(speed) {
-        this.speedY = speed;
-        playerComponents.map(component => {
-            if (this.touchWith(component, {
-                name: this.name,
-                x: this.x,
-                y: this.y + this.speedY,
-                width: this.width,
-                height: this.height,
-            }) == 'inside') {
-                this.speedY = 0
-                this.y = component.y - this.height - 1
-            }
-        })
+        this.speedZ = speed;
     }
     moveLeft(speed) {
         this.speedX = -speed;
-        playerComponents.map(component => {
-            if (this.touchWith(component, {
-                name: this.name,
-                x: this.x + this.speedX,
-                y: this.y,
-                width: this.width,
-                height: this.height,
-            }) == 'inside') {
-                this.speedX = 0
-                this.x = component.x + component.width + 1
-            }
-        })
     }
     moveRight(speed) {
         this.speedX = speed;
-        playerComponents.map(component => {
-            if (this.touchWith(component, {
-                name: this.name,
-                x: this.x + this.speedX,
-                y: this.y,
-                width: this.width,
-                height: this.height,
-            }) == 'inside') {
-                this.speedX = 0
-                this.x = component.x - this.width - 1
-            }
-        })
     }
     isComponent() {
         if (playerComponents.filter(component => component.name == this.name).length) return true
@@ -501,105 +360,49 @@ class Player {
     }
     deleteComponent() {
         if (this.isComponent()) {
-            components.splice(components.indexOf(this), 1)
             playerComponents.splice(playerComponents.indexOf(this), 1)
         }
     }
     touchWith(otherPlayer, thisPlayer = this) {
         if (otherPlayer.name !== thisPlayer.name && otherPlayer.isComponent() && (thisPlayer == this ? thisPlayer.isComponent() : true)) {
             let touch = false;
-            let myleft = thisPlayer.x;
-            let myright = thisPlayer.x + thisPlayer.width;
-            let mytop = thisPlayer.y;
-            let mybottom = thisPlayer.y + thisPlayer.height;
-            let otherleft = otherPlayer.x;
-            let otherright = otherPlayer.x + otherPlayer.width;
-            let othertop = otherPlayer.y;
-            let otherbottom = otherPlayer.y + otherPlayer.height;
-            if ((mybottom > othertop) &&
-                (mytop < otherbottom) &&
-                (myright > otherleft) &&
-                (myleft < otherright)) {
-                touch = 'inside'
-            }
-            if ((mybottom > othertop) &&
-                (mytop == otherbottom + 1) &&
-                (myright > otherleft) &&
-                (myleft < otherright)) {
-                touch = 'up';
-            }
-            if ((mybottom == othertop - 1) &&
-                (mytop < otherbottom) &&
-                (myright > otherleft) &&
-                (myleft < otherright)) {
-                touch = 'down';
-            }
-            if ((mybottom > othertop) &&
-                (mytop < otherbottom) &&
-                (myright == otherleft - 1) &&
-                (myleft < otherright)) {
-                touch = 'right';
-            }
-            if ((mybottom > othertop) &&
-                (mytop < otherbottom) &&
-                (myright > otherleft) &&
-                (myleft == otherright + 1)) {
-                touch = 'left';
+            let myleft = thisPlayer.position.x;
+            let myright = thisPlayer.position.x + thisPlayer.width;
+            let mytop = thisPlayer.position.y;
+            let mybottom = thisPlayer.position.y + thisPlayer.height;
+            let otherleft = otherPlayer.position.x;
+            let otherright = otherPlayer.position.x + otherPlayer.width;
+            let othertop = otherPlayer.position.y;
+            let otherbottom = otherPlayer.position.y + otherPlayer.height;
+            if ((mybottom >= othertop) &&
+                (mytop <= otherbottom) &&
+                (myright >= otherleft) &&
+                (myleft <= otherright)) {
+                touch = true
             }
             return touch;
         } else return false
     }
 }
 
-class Sound {
-    constructor(src, volume, loop) {
-        this.audio = new Audio('sound/' + src)
-        this.volume = volume
-        this.loop = loop
-    }
-    play() {
-        this.audio.volume = this.volume / 100
-        this.audio.loop = this.loop
-        this.audio.play()
-    }
-    pause() {
-        this.audio.pause()
-    }
+function updateGameArea() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight)
+    playerComponent.speedX = 0;
+    playerComponent.speedY = 0;
+    playerComponent.speedZ = 0;
+    camera.lookAt(0, 100, 0);
+    if (keys.includes('ArrowLeft')) playerComponent.moveLeft(1)
+    if (keys.includes('ArrowRight')) playerComponent.moveRight(1)
+    if (keys.includes('ArrowUp')) playerComponent.moveUp(1)
+    if (keys.includes('ArrowDown')) playerComponent.moveDown(1)
+    playerComponents.map(component => component.update())
+    renderer.render(scene, camera);
 }
 
 function getPlayer(name) {
     return players.filter(player => player.name == name)[0]
-}
-
-function drawBackground(color) {
-    let background = new Component('background', 'rect', 0, 0, gameArea.canvas.width, gameArea.canvas.height, color, true)
-    background.draw()
-}
-
-function updateGameArea() {
-    gameArea.canvas.width = window.innerWidth
-    gameArea.canvas.height = window.innerHeight
-    gameArea.clear();
-    playerComponent.speedX = 0;
-    playerComponent.speedY = 0;
-    if (keyDown('ArrowLeft')) playerComponent.moveLeft(2)
-    if (keyDown('ArrowRight')) playerComponent.moveRight(2)
-    if (keyDown('ArrowUp')) playerComponent.moveUp(2)
-    if (keyDown('ArrowDown')) playerComponent.moveDown(2)
-    drawBackground('lightblue')
-    components.map(component => {
-        component.draw()
-    })
-    playerComponents.map(component => {
-        component.draw()
-    })
-    playerComponent.newPos()
-    // botAI()
-}
-
-function keyDown(key) {
-    if (gameArea.keys && gameArea.keys[key] && chatInput !== document.activeElement) return true
-    return false
 }
 
 function chatLog(text) {
@@ -610,20 +413,8 @@ function chatLog(text) {
     writeData('chat/length', chatLength + 1)
 }
 
-start()
+function getColor(color) {
+    return new THREE.Color(color)
+}
 
-// function botAI() {
-//     let bot = getPlayer('bot')
-//     if ((bot.x + 50) < player.x) {
-//         writeData('players/bot/x', bot.x + 1)
-//     }
-//     if (bot.x > (player.x - 50)) {
-//         writeData('players/bot/x', bot.x - 1)
-//     }
-//     if (bot.y > (player.y + 50)){
-//         writeData('players/bot/y', bot.y - 1)
-//     }
-//     if ((bot.y + 50) < player.y){
-//         writeData('players/bot/y', bot.y + 1)
-//     }
-// }
+start()
