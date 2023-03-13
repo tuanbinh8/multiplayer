@@ -6,15 +6,18 @@
     font-size: 25px;
 }
 
-#loader-container {
+.container {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
+    width: 100vw;
+    height: 100vh;
+    top: 0;
+    left: 0;
+}
+
+#loader-container {
     background-color: rgba(0, 0, 0, 0.5);
     z-index: 1000;
 }
@@ -40,12 +43,6 @@
 
 #container {
     background-color: black;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    width: 100vw;
-    height: 100vh;
 }
 
 #canvas {
@@ -64,42 +61,6 @@
 
 #color {
     margin-top: 5px;
-}
-
-#moving-buttons {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    margin: 20px;
-}
-
-#moving-buttons button {
-    padding: 30px;
-    background-color: transparent;
-}
-
-#moving-buttons div {
-    width: 159px;
-    margin-top: 10px;
-    display: flex;
-}
-
-#chat-container {
-    position: fixed;
-    bottom: 0;
-}
-
-#chat-list {
-    padding: 10px;
-    word-wrap: break-word;
-}
-
-#chat-input {
-    width: 100vw;
-    background-color: transparent;
-    border: none;
-    outline: none;
-    padding: 10px;
 }
 
 #players-list {
@@ -127,4 +88,20 @@
 #players-number {
     color: lightgreen !important;
     font-weight: bold;
+}
+
+#auth {
+    background-color: white;
+    padding: 20px;
+    border-radius: 5px;
+    z-index: 1001;
+}
+
+#auth * {
+    display: block;
+    margin-bottom: 10px;
+}
+
+#auth button {
+    display: none;
 }

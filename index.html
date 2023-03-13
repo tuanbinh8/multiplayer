@@ -10,10 +10,10 @@
 </head>
 
 <body>
-    <div id="loader-container">
+    <div class="container" id="loader-container">
         <div class="loader"></div>
     </div>
-    <div id="container">
+    <div class="container" id="container">
         <canvas id="canvas"></canvas>
     </div>
     <div id="top">
@@ -26,30 +26,18 @@
             
         </ul>
         <div>
-            <button id="chat-button">Chat</button>
             <button id="log-out">Log out</button>
         </div>
     </div>
-    <div id="moving-buttons">
-        <div style="justify-content: center;">
-            <span></span>
-            <button id="up" data-key="ArrowUp">^</button>
-            <span></span>
-        </div>
-        <div style="justify-content: space-between;">
-            <button id="left" data-key="ArrowLeft"><</button>
-            <span></span>
-            <button id="right" data-key="ArrowRight">></button>
-        </div>
-        <div style="justify-content: center;">
-            <span></span>
-            <button id="down" data-key="ArrowDown">v</button>
-            <span></span>
-        </div>
-    </div>
-    <div id="chat-container">
-        <ul id="chat-list"></ul>
-        <input type="text" id="chat-input" style="display:none;">
+    <div class="container" id="auth-container">
+        <form id="auth">
+            <h1>Authentication:</h1>
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name">
+            <label for="pass" id="pass-label">Password:</label>
+            <input type="text" id="pass" name="pass">
+            <button name="button"></button>
+        </form>
     </div>
 </body>
 <script type="module" src="game.js"></script>
