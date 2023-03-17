@@ -19,7 +19,7 @@
 
 #loader-container {
     background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
+    z-index: 2;
 }
 
 .loader {
@@ -41,6 +41,20 @@
     }
 }
 
+#pause-container {
+    flex-direction: column;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: none;
+    z-index: 2;
+}
+
+#pause-container * {
+    color: white;
+    margin-top: 10px;
+    font-family: monospace;
+    cursor: default;
+}
+
 #container {
     background-color: black;
 }
@@ -50,17 +64,13 @@
 }
 
 #top {
-    position: absolute;
+    position: relative;
     top: 0;
-    z-index: 999;
+    z-index: 1;
     width: 100%;
     padding: 10px;
     display: flex;
     justify-content: space-between;
-}
-
-#color {
-    margin-top: 5px;
 }
 
 #players-list {
@@ -94,7 +104,7 @@
     background-color: white;
     padding: 20px;
     border-radius: 5px;
-    z-index: 1001;
+    z-index: 3;
 }
 
 #auth * {

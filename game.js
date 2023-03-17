@@ -1,10 +1,12 @@
-import * as THREE from 'https://unpkg.com/three/build/three.module.js';
+import * as THREE from 'three';
+import { GLTFLoader } from 'GLTFLoader'
 import { readData, writeData, updateData, changeListener } from './database.js'
 
 let canvas = document.getElementById('canvas')
 let scene = new THREE.Scene()
 scene.background = getColor('lightblue')
 let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000)
+let cameraLookAtY = 0
 let renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, })
 let keys = []
 
@@ -52,7 +54,7 @@ if (!name) {
                 position: {
                     x: 0,
                     y: 0,
-                    z: 0,
+                    z: 500,
                 },
                 rotation: {
                     x: 0,
@@ -70,11 +72,13 @@ if (!name) {
         authForm.remove()
         let authContainer = document.getElementById('auth-container')
         authContainer.remove()
-        if (await readData('players/' + name)) {
+        let player = await readData('players/' + name)
+        if (player) {
             updateData('players/' + name, {
                 online: true,
             })
             start()
+            colorInput.value = player.color
         } else {
             localStorage.removeItem('name')
             location.reload()
@@ -85,9 +89,6 @@ if (!name) {
 async function start() {
     let loaderContainer = document.getElementById('loader-container')
     loaderContainer.remove()
-
-    let logOutButton = document.getElementById('log-out')
-    let playersList = document.getElementById('players-list')
 
     let ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
     scene.add(ambientLight);
@@ -106,12 +107,20 @@ async function start() {
     planeMesh.rotateX(- Math.PI / 2);
     scene.add(planeMesh)
 
-    let cubeGeo = new THREE.BoxGeometry(50, 50, 50)
-    let cubeMaterial = new THREE.MeshLambertMaterial({ color: getColor('yellow') })
-    let cubeMesh = new THREE.Mesh(cubeGeo, cubeMaterial)
-    cubeMesh.position.set(0, 25, 0)
-    scene.add(cubeMesh)
+    let loader = new GLTFLoader();
+    loader.load(
+        'image/model.glb',
+        (gltf) => {
+            const root = gltf.scene;
+            root.position.set(0, 50, 0)
+            root.scale.set(100, 100, 100)
+            scene.add(root);
+        }
+    );
 
+    let pauseContainer = document.getElementById('pause-container')
+    pauseContainer.style.display = 'flex'
+    let playersList = document.getElementById('players-list')
     window.onkeydown = (event) => {
         let key = event.key
         if (!keys.includes(key))
@@ -138,7 +147,9 @@ async function start() {
         }
     }
 
-    window.onmousemove = (event) => {
+    window.onwheel = (event) => { }
+
+    canvas.onmousemove = (event) => {
         if (!playerComponent) return
         playerComponent.rotation.y -= event.movementX / 100
         playerComponent.rotation.y %= 2 * Math.PI
@@ -146,12 +157,23 @@ async function start() {
         camera.position.x = playerComponent.position.x + 200 * Math.sin(angle)
         camera.position.y = playerComponent.position.y + 200
         camera.position.z = playerComponent.position.z + 200 * Math.cos(angle)
+        cameraLookAtY -= event.movementY
     }
 
-    colorInput.onchange = () => {
-        writeData('players/' + name + '/color', colorInput.value)
-    }
+    document.addEventListener("pointerlockchange", () => {
+        if (document.pointerLockElement === canvas) {
+            pauseContainer.style.display = 'none'
+        } else {
+            pauseContainer.style.display = 'flex'
+        }
+    });
 
+    let playButton = document.getElementById('play')
+    playButton.onclick = () => canvas.requestPointerLock()
+
+    colorInput.onchange = () => writeData('players/' + name + '/color', colorInput.value)
+
+    let logOutButton = document.getElementById('log-out')
     logOutButton.onclick = () => {
         localStorage.removeItem('name')
         location.reload()
@@ -160,7 +182,7 @@ async function start() {
     changeListener('players', async (data) => {
         players = data ? Object.values(data) : []
         player = getPlayer(name)
-        playersList.innerHTML = `<li id='players-number'>Players: ${players.length}</li>`
+        playersList.innerHTML = `<li id='players-number'>Players: ${players.filter(player => player.online).length}</li>`
         players.map(player => {
             let componentList = playerComponents.filter(component => component.name == player.name)
             if (player.online) {
@@ -183,7 +205,6 @@ async function start() {
                 }
             }
         })
-        colorInput.value = player.color
     })
 
     changeListener('.info/connected', (online) => {
@@ -203,10 +224,6 @@ async function start() {
     requestAnimationFrame(updateGameArea)
 }
 
-window.onclick = (event) => {
-    if (event.target !== colorInput) canvas.requestPointerLock()
-}
-
 class Player {
     constructor(name, color, width, position, rotation) {
         this.name = name
@@ -214,16 +231,32 @@ class Player {
         this.width = width
         this.position = position
         this.rotation = rotation
+        this.speed = {
+            x: 0,
+            y: 0,
+            z: 0,
+        }
+        this.isJumping = false
         let geometry = new THREE.BoxGeometry(width, width, width);
-        let material = new THREE.MeshLambertMaterial({ color: getColor(this.color) });
+        let textureLoader = new THREE.TextureLoader();
+        let face = textureLoader.load('image/face.png');
+        let material = [
+            new THREE.MeshLambertMaterial({ color: getColor(this.color) }),
+            new THREE.MeshLambertMaterial({ color: getColor(this.color) }),
+            new THREE.MeshLambertMaterial({ color: getColor(this.color) }),
+            new THREE.MeshLambertMaterial({ color: getColor(this.color) }),
+            new THREE.MeshLambertMaterial({ color: getColor(this.color) }),
+            new THREE.MeshLambertMaterial({ map: face }),
+        ];
         this.cube = new THREE.Mesh(geometry, material);
         scene.add(this.cube);
     }
     update() {
         if (this.name == name) {
-            this.position.x += this.speedX;
-            this.position.y += this.speedY;
-            this.position.z += this.speedZ;
+            this.position.x += this.speed.x
+            this.position.y += this.speed.y
+            this.position.z += this.speed.z
+
             let positionDisplayer = document.getElementById('position-displayer')
             positionDisplayer.innerHTML = `
             <b>Position</b>
@@ -246,23 +279,29 @@ class Player {
     }
     moveUp(speed) {
         let angle = this.rotation.y
-        this.position.x -= speed * Math.sin(angle);
-        this.position.z -= speed * Math.cos(angle);
+        this.speed.x = -speed * Math.sin(angle);
+        this.speed.z = -speed * Math.cos(angle);
     }
     moveDown(speed) {
         let angle = this.rotation.y + Math.PI
-        this.position.x -= speed * Math.sin(angle);
-        this.position.z -= speed * Math.cos(angle);
+        this.speed.x = -speed * Math.sin(angle);
+        this.speed.z = -speed * Math.cos(angle);
     }
     moveLeft(speed) {
         let angle = this.rotation.y + Math.PI / 2
-        this.position.x -= speed * Math.sin(angle);
-        this.position.z -= speed * Math.cos(angle);
+        this.speed.x = -speed * Math.sin(angle);
+        this.speed.z = -speed * Math.cos(angle);
     }
     moveRight(speed) {
         let angle = this.rotation.y - Math.PI / 2
         this.position.x -= speed * Math.sin(angle);
-        this.position.z -= speed * Math.cos(angle);
+        this.speed.z = -speed * Math.cos(angle);
+    }
+    jump(speed) {
+        if (!this.isJumping) {
+            this.isJumping = true
+            playerComponent.speed.y = speed
+        }
     }
     isComponent() {
         if (playerComponents.filter(component => component.name == this.name).length) return true
@@ -306,19 +345,27 @@ function updateGameArea() {
         camera.aspect = (window.innerWidth * windowSize) / (window.innerHeight * windowSize);
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth * windowSize, window.innerHeight * windowSize)
-        playerComponent.speedX = 0;
-        playerComponent.speedY = 0;
-        playerComponent.speedZ = 0;
+        playerComponent.speed.x = 0
+        playerComponent.speed.z = 0
+        if (playerComponent.position.y > 0) playerComponent.speed.y -= 1
+        else {
+            playerComponent.speed.y = 0
+            playerComponent.position.y = 0
+            playerComponent.isJumping = false
+        }
         if (keys.includes('w') || keys.includes('W')) playerComponent.moveUp(10)
         if (keys.includes('a') || keys.includes('A')) playerComponent.moveLeft(10)
         if (keys.includes('d') || keys.includes('D')) playerComponent.moveRight(10)
         if (keys.includes('s') || keys.includes('S')) playerComponent.moveDown(10)
+        if (keys.includes(' ')) playerComponent.jump(20)
         playerComponents.map(component => component.update())
-        let angle = playerComponent.rotation.y
-        camera.position.x = playerComponent.position.x + 200 * Math.sin(angle)
-        camera.position.y = playerComponent.position.y + 200
-        camera.position.z = playerComponent.position.z + 200 * Math.cos(angle)
-        camera.lookAt(player.position.x, player.position.y + 100, player.position.z);
+        let angle = player.rotation.y
+        camera.position.x = player.position.x + 200 * Math.sin(angle)
+        camera.position.y = player.position.y + 200
+        camera.position.z = player.position.z + 200 * Math.cos(angle)
+        if (cameraLookAtY > 500) cameraLookAtY = 500
+        if (cameraLookAtY < -500) cameraLookAtY = -500
+        camera.lookAt(player.position.x, player.position.y + 100 + cameraLookAtY, player.position.z);
         renderer.render(scene, camera);
     } catch (error) {
         console.log(error);

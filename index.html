@@ -13,17 +13,19 @@
     <div class="container" id="loader-container">
         <div class="loader"></div>
     </div>
+    <div class="container" id="pause-container">
+        <b id="play">Click to play</b>
+        <p>WASD to move</p>
+        <p>Space to jump</p>
+        <input type="color" id="color">
+    </div>
     <div class="container" id="container">
         <canvas id="canvas"></canvas>
     </div>
     <div id="top">
-        <div>
-            <ul id="position-displayer">
-            </ul>
-            <input type="color" id="color">
-        </div>
+        <ul id="position-displayer">
+        </ul>
         <ul id="players-list">
-            
         </ul>
         <div>
             <button id="log-out">Log out</button>
@@ -40,6 +42,14 @@
         </form>
     </div>
 </body>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+            "GLTFLoader": "https://unpkg.com/three@0.150.1/examples/jsm/loaders/GLTFLoader.js"
+        }
+    }
+</script>
 <script type="module" src="game.js"></script>
 
 </html>
